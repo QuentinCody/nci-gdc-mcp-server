@@ -1,6 +1,16 @@
 # NCI GDC MCP Server: Easy Access for Scientists
 
-This server lets you explore and analyze data from the National Cancer Institute (NCI) Genomic Data Commons (GDC) using natural language tools like Claude Desktop or other Model Context Protocol (MCP) clients. You do **not** need to be a programmer to use it!
+## License and Citation
+
+This project is available under the MIT License with an Academic Citation Requirement. This means you can freely use, modify, and distribute the code, but any academic or scientific publication that uses this software must provide appropriate attribution.
+
+### For academic/research use:
+If you use this software in a research project that leads to a publication, presentation, or report, you **must** cite this work according to the format provided in [CITATION.md](CITATION.md).
+
+### For commercial/non-academic use:
+Commercial and non-academic use follows the standard MIT License terms without the citation requirement.
+
+By using this software, you agree to these terms. See [LICENSE.md](LICENSE.md) for the complete license text.This server lets you explore and analyze data from the National Cancer Institute (NCI) Genomic Data Commons (GDC) using natural language tools like Claude Desktop or other Model Context Protocol (MCP) clients. You do **not** need to be a programmer to use it!
 
 ---
 
