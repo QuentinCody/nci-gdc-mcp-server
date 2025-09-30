@@ -24,12 +24,24 @@ By using this software, you agree to these terms. See [LICENSE.md](LICENSE.md) f
 
 ## How to Use This Server with Claude Desktop
 
-### 1. Start the MCP Server
+### 1. Access the MCP Server
 
-Ask your technical support or IT to start the server for you, or follow their instructions. By default, it will be available at:
+The server is deployed and ready to use at:
 
 ```
-http://localhost:8787/sse
+https://nci-gdc-mcp-server.quentincody.workers.dev/mcp
+```
+
+For legacy SSE transport, it's also available at:
+
+```
+https://nci-gdc-mcp-server.quentincody.workers.dev/sse
+```
+
+For local development, the server will be available at:
+
+```
+http://localhost:8787/mcp
 ```
 
 ### 2. Connect Claude Desktop to the Server
@@ -41,11 +53,11 @@ http://localhost:8787/sse
 ```json
 {
   "mcpServers": {
-    "nci-gdc-local": {
+    "nci-gdc": {
       "command": "npx",
       "args": [
         "mcp-remote",
-        "http://localhost:8787/sse"
+        "https://nci-gdc-mcp-server.quentincody.workers.dev/mcp"
       ]
     }
   }
@@ -53,7 +65,43 @@ http://localhost:8787/sse
 ```
 
 4. Save and restart Claude Desktop.
-5. In Claude, select the "nci-gdc-local" server from the MCP menu.
+5. In Claude, select the "nci-gdc" server from the MCP menu.
+
+#### Alternative: Using SSE Transport
+
+If you prefer to use the legacy SSE transport, use this configuration instead:
+
+```json
+{
+  "mcpServers": {
+    "nci-gdc-sse": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://nci-gdc-mcp-server.quentincody.workers.dev/sse"
+      ]
+    }
+  }
+}
+```
+
+#### Local Development
+
+For local development, use:
+
+```json
+{
+  "mcpServers": {
+    "nci-gdc-local": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "http://localhost:8787/mcp"
+      ]
+    }
+  }
+}
+```
 
 ---
 
