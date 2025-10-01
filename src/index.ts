@@ -67,73 +67,36 @@ Refer to the NCI GDC Data Portal documentation (https://gdc.cancer.gov/developer
 			"gdc_graphql_query",
 			`Executes a GraphQL query against the NCI GDC GraphQL API (Search and Retrieval Endpoint: ${this.GDC_GRAPHQL_ENDPOINT}).
 
-**Tip:** For best results, start by using GraphQL introspection queries to explore the schema before running other queries. Introspection helps you discover all available types, fields, and relationships, prevents errors, and ensures your queries are accurate and up-to-date.
+**CRITICAL: Filters must be string-encoded JSON, NOT JavaScript objects**
 
-**Why use introspection?**
-- See exactly what data is available and how to access it.
-- Avoid errors from incorrect field names or outdated assumptions.
-- Adapt quickly to schema changes.
-- Write more efficient, targeted queries.
+**Common Error Patterns to Avoid:**
+❌ filters: {op: "in", content: {field: "cases.project.project_id", value: ["TARGET-NBL"]}}
+✅ filters: "{\\\"op\\\":\\\"in\\\",\\\"content\\\":{\\\"field\\\":\\\"cases.project.project_id\\\",\\\"value\\\":[\\\"TARGET-NBL\\\"]}}"
 
-**Example introspection query:**
+❌ Using 'cases' directly in root query
+✅ Use 'viewer { repository { cases { ... } } }' or 'projects { ... }' for root queries
+
+**Required Query Structure for Cases:**
 \`\`\`graphql
-{
-  __schema {
-    queryType { name }
-    types {
-      name
-      kind
-      description
-      fields {
-        name
-        type { name kind }
-      }
-    }
-  }
-}
-\`\`\`
-
-After exploring the schema, you can query for specific data.
-
-**Example data queries:**
-- Projects in the "Kidney" primary site:
-  Query:
-  \`\`\`graphql
-  query ProjectsEdges($filters_1: FiltersArgument) {
-    projects {
-      hits(filters: $filters_1) {
-        total
-        edges {
-          node {
-            primary_site
-            disease_type
-            project_id
-            dbgap_accession_number
-          }
-        }
-      }
-    }
-  }
-  \`\`\`
-  Variables:
-  \`\`\`json
-  { "filters_1": {"op": "in", "content": {"field": "projects.primary_site", "value": ["Kidney"]}}}
-  \`\`\`
-- Case file counts for a specific case ID:
-  Query:
-  \`\`\`graphql
-  query CaseFileCounts($filters: FiltersArgument) {
-    viewer {
-      repository {
-        cases {
-          hits(first: 1, filters: $filters) {
-            edges {
-              node {
-                case_id
-                files { hits(first: 0) { total } }
-                summary {
-                  experimental_strategies { experimental_strategy file_count }
-                  data_categories { data_category file_count }
+query {
+  viewer {
+    repository {
+      cases {
+        hits(filters: "FILTER_STRING_HERE", first: 100) {
+          edges {
+            node {
+              case_id
+              primary_site
+              disease_type
+              demographic { gender race ethnicity }
+              diagnoses {
+                hits(first: 1) {
+                  edges {
+                    node {
+                      age_at_diagnosis
+                      primary_diagnosis
+                    }
+                  }
                 }
               }
             }
@@ -142,27 +105,93 @@ After exploring the schema, you can query for specific data.
       }
     }
   }
-  \`\`\`
-  Variables:
-  \`\`\`json
-  {"filters":{"op":"in","content":{"field":"cases.case_id","value":["dcd5860c-7e3a-44f3-a732-fe92fe3fe300"]}}}
-  \`\`\`
+}
+\`\`\`
 
-Refer to the NCI GDC Data Portal documentation and GraphiQL tool (at the API endpoint) for more examples and schema details. If a query fails, use introspection to verify field names and types.`,
+**Field Location Guide:**
+- **Case level**: case_id, primary_site, disease_type
+- **Demographic**: gender, race, ethnicity, year_of_birth (NOTE: vital_status and days_to_death are NOT here)
+- **Diagnoses**: age_at_diagnosis, primary_diagnosis, last_known_disease_status
+- **Vital status info**: Use follow_ups node or check diagnosis.last_known_disease_status
+
+**Working Examples:**
+
+1. **Get all TARGET-NBL cases:**
+\`\`\`graphql
+query {
+  viewer {
+    repository {
+      cases {
+        hits(filters: "{\\\"op\\\":\\\"in\\\",\\\"content\\\":{\\\"field\\\":\\\"cases.project.project_id\\\",\\\"value\\\":[\\\"TARGET-NBL\\\"]}}", first: 100) {
+          edges {
+            node {
+              case_id
+              primary_site
+              disease_type
+            }
+          }
+        }
+      }
+    }
+  }
+}
+\`\`\`
+
+2. **Projects query (no viewer wrapper needed):**
+\`\`\`graphql
+query {
+  projects {
+    hits(first: 100) {
+      edges {
+        node {
+          project_id
+          name
+          primary_site
+          disease_type
+        }
+      }
+    }
+  }
+}
+\`\`\`
+
+**Before writing complex queries, ALWAYS:**
+1. Use introspection to discover available fields
+2. Check field locations with: { __type(name: "Case") { fields { name } } }
+3. Test with simple queries first, then add complexity
+
+If you get syntax errors, the most common causes are:
+- Filters not string-encoded
+- Wrong query structure (missing viewer/repository for cases)
+- Requesting fields that don't exist on that type`,
 			{
 				query: z.string().describe(
 					`The GraphQL query string to execute against the NCI GDC GraphQL API.
 
-**Pro tip:** Use introspection queries like '{ __schema { types { name kind fields { name } } } }' to discover the schema before running other queries. This helps you avoid errors and ensures your queries are valid.
+**CRITICAL REQUIREMENTS:**
+- For cases: Use 'viewer { repository { cases { ... } } }' structure
+- For projects: Use 'projects { ... }' directly
+- Filters MUST be string-encoded JSON when used inline
+- Always check field existence with introspection first
 
-Example data query: 'query CaseFileCounts($filters: FiltersArgument) { viewer { repository { cases { hits(filters: $filters) { edges { node { case_id files { hits { total } } } } } } } } } }'. Make sure to include variables if the query needs them.`
+**Examples:**
+- Introspection: '{ __type(name: "Case") { fields { name } } }'
+- Cases: 'query { viewer { repository { cases { hits(filters: "{\\"op\\":\\"in\\",\\"content\\":{\\"field\\":\\"cases.project.project_id\\",\\"value\\":[\\"TARGET-NBL\\"]}}", first: 10) { edges { node { case_id } } } } } } }'
+- Projects: 'query { projects { hits(first: 10) { edges { node { project_id name } } } } }'`
 				),
 				variables: z
 					.record(z.any())
 					.optional()
 					.describe(
-						`Optional dictionary of variables for the GraphQL query.
-Example: { "filters": { "op": "in", "content": { "field": "cases.case_id", "value": ["dcd5860c-7e3a-44f3-a732-fe92fe3fe300"] } } }`
+						`Optional dictionary of variables for the GraphQL query. When using variables, filters should be properly formatted JSON objects (not strings).
+
+**Correct variable format:**
+{ "filters": { "op": "in", "content": { "field": "cases.project.project_id", "value": ["TARGET-NBL"] } } }
+
+**Use variables when:**
+- Query has $filters parameter
+- You want cleaner, reusable queries
+- Working with complex filter logic`
 					),
 			},
 			async ({ query, variables }: { query: string; variables?: Record<string, any> }) => {
@@ -282,18 +311,6 @@ Example: { "filters": { "op": "in", "content": { "field": "cases.case_id", "valu
 	}
 }
 
-// Define the Env interface for environment variables, if any.
-// For this server, no specific environment variables are strictly needed for NCI GDC API access.
-interface Env {
-	MCP_HOST?: string;
-	MCP_PORT?: string;
-}
-
-// Dummy ExecutionContext for type compatibility, usually provided by the runtime environment (e.g., Cloudflare Workers).
-interface ExecutionContext {
-	waitUntil(promise: Promise<any>): void;
-	passThroughOnException(): void;
-}
 
 // Export the fetch handler, standard for environments like Cloudflare Workers or Deno Deploy.
 export default {
