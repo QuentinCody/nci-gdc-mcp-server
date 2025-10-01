@@ -67,50 +67,73 @@ Refer to the NCI GDC Data Portal documentation (https://gdc.cancer.gov/developer
 			"gdc_graphql_query",
 			`Executes a GraphQL query against the NCI GDC GraphQL API (Search and Retrieval Endpoint: ${this.GDC_GRAPHQL_ENDPOINT}).
 
-**IMPORTANT: FiltersArgument must be a string-encoded JSON object, not a JS object.**
+**Tip:** For best results, start by using GraphQL introspection queries to explore the schema before running other queries. Introspection helps you discover all available types, fields, and relationships, prevents errors, and ensures your queries are accurate and up-to-date.
 
-- **Correct:**
-  filters: "{\"op\":\"=\",\"content\":{\"field\":\"primary_site\",\"value\":[\"Brain\"]}}"
-- **Incorrect:**
-  filters: {op: "=", content: {field: "primary_site", value: ["Brain"]}}
+**Why use introspection?**
+- See exactly what data is available and how to access it.
+- Avoid errors from incorrect field names or outdated assumptions.
+- Adapt quickly to schema changes.
+- Write more efficient, targeted queries.
 
-**Best Practices for GDC GraphQL Queries:**
-1. **Filters must be string-encoded JSON** (see above). This applies to all filters, including nested/complex filters.
-2. **Apply filters, sorting, and other arguments to the operation (e.g., hits), not the entity.**
-   - Incorrect: ssms(filters: ...)
-   - Correct: ssms { hits(filters: ...) { ... } }
-3. **Enum values (e.g., sort order) are case-sensitive and must be lowercase.**
-   - Correct: order: desc
-4. **Complex filters use nested JSON with 'and'/'or' operators.**
-   - Example: filters: "{\"op\":\"and\",\"content\":[{...},{...}]}"
-5. **Use dot notation for nested field paths in filters.**
-   - Example: consequence.transcript.gene.symbol
-6. **Available filter operators include:** =, !=, >, >=, <, <=, in, and, or
-7. **Use GraphQL introspection to discover available types and fields before building queries.**
-   - Example: { __type(name: "Case") { fields { name } } }
-8. **Working query template:**
+**Example introspection query:**
 \`\`\`graphql
 {
-  explore {
-    ssms {
-      hits(
-        first: 10,
-        filters: "{\\\"op\\\":\\\"and\\\",\\\"content\\\":[{\\\"op\\\":\\\"=\\\",\\\"content\\\":{\\\"field\\\":\\\"consequence.transcript.annotation.vep_impact\\\",\\\"value\\\":[\\\"HIGH\\\"]}}]}"
-      ) {
+  __schema {
+    queryType { name }
+    types {
+      name
+      kind
+      description
+      fields {
+        name
+        type { name kind }
+      }
+    }
+  }
+}
+\`\`\`
+
+After exploring the schema, you can query for specific data.
+
+**Example data queries:**
+- Projects in the "Kidney" primary site:
+  Query:
+  \`\`\`graphql
+  query ProjectsEdges($filters_1: FiltersArgument) {
+    projects {
+      hits(filters: $filters_1) {
+        total
         edges {
           node {
-            genomic_dna_change
-            gene_aa_change
-            consequence {
-              hits(first: 1) {
-                edges {
-                  node {
-                    transcript {
-                      consequence_type
-                      gene { symbol }
-                      annotation { vep_impact }
-                    }
-                  }
+            primary_site
+            disease_type
+            project_id
+            dbgap_accession_number
+          }
+        }
+      }
+    }
+  }
+  \`\`\`
+  Variables:
+  \`\`\`json
+  { "filters_1": {"op": "in", "content": {"field": "projects.primary_site", "value": ["Kidney"]}}}
+  \`\`\`
+- Case file counts for a specific case ID:
+  Query:
+  \`\`\`graphql
+  query CaseFileCounts($filters: FiltersArgument) {
+    viewer {
+      repository {
+        cases {
+          hits(first: 1, filters: $filters) {
+            edges {
+              node {
+                case_id
+                files { hits(first: 0) { total } }
+                summary {
+                  experimental_strategies { experimental_strategy file_count }
+                  data_categories { data_category file_count }
                 }
               }
             }
@@ -119,33 +142,27 @@ Refer to the NCI GDC Data Portal documentation (https://gdc.cancer.gov/developer
       }
     }
   }
-}
-\`\`\`
+  \`\`\`
+  Variables:
+  \`\`\`json
+  {"filters":{"op":"in","content":{"field":"cases.case_id","value":["dcd5860c-7e3a-44f3-a732-fe92fe3fe300"]}}}
+  \`\`\`
 
-**If you encounter errors:**
-- Double-check that filters are string-encoded JSON.
-- Use introspection to verify field names and types.
-- Ensure arguments are placed on the correct operation (hits, aggregations, etc.).
-- Check enum value case (e.g., desc not DESC).
-
-For more, see the GDC API docs: https://gdc.cancer.gov/developers/gdc-application-programming-interface-api/gdc-api-user-guide/graphql-quick-start
-`,
+Refer to the NCI GDC Data Portal documentation and GraphiQL tool (at the API endpoint) for more examples and schema details. If a query fails, use introspection to verify field names and types.`,
 			{
 				query: z.string().describe(
 					`The GraphQL query string to execute against the NCI GDC GraphQL API.
 
-**Filters must be string-encoded JSON.**
-- Example: filters: "{\\\"op\\\":\\\"=\\\",\\\"content\\\":{\\\"field\\\":\\\"primary_site\\\",\\\"value\\\":[\\\"Brain\\\"]}}"
-- Use introspection queries like '{ __type(name: "Case") { fields { name } } }' to discover fields before building complex queries.`
+**Pro tip:** Use introspection queries like '{ __schema { types { name kind fields { name } } } }' to discover the schema before running other queries. This helps you avoid errors and ensures your queries are valid.
+
+Example data query: 'query CaseFileCounts($filters: FiltersArgument) { viewer { repository { cases { hits(filters: $filters) { edges { node { case_id files { hits { total } } } } } } } } } }'. Make sure to include variables if the query needs them.`
 				),
 				variables: z
 					.record(z.any())
 					.optional()
 					.describe(
 						`Optional dictionary of variables for the GraphQL query.
-For filter variables, provide the filter as a properly formatted JSON string:
-{ "filters": "{\\\"op\\\":\\\"=\\\",\\\"content\\\":{\\\"field\\\":\\\"cases.case_id\\\",\\\"value\\\":[\\\"dcd5860c-7e3a-44f3-a732-fe92fe3fe300\\\"]}}" }
-`
+Example: { "filters": { "op": "in", "content": { "field": "cases.case_id", "value": ["dcd5860c-7e3a-44f3-a732-fe92fe3fe300"] } } }`
 					),
 			},
 			async ({ query, variables }: { query: string; variables?: Record<string, any> }) => {
@@ -285,24 +302,21 @@ export default {
 
 		// Streamable HTTP transport is primary
 		if (url.pathname === "/mcp" || url.pathname.startsWith("/mcp/")) {
-			// The `NciGdcMCP.serve` static method provides Streamable HTTP transport
 			// @ts-ignore McpAgent provides serve method
 			const httpHandler = NciGdcMCP.serve("/mcp");
 			return httpHandler.fetch(request, env, ctx);
 		}
 
-		// SSE transport (legacy support)
+		// SSE transport
 		if (url.pathname === "/sse" || url.pathname.startsWith("/sse/")) {
-			// The `NciGdcMCP.serveSSE` static method (inherited from McpAgent or its base)
-			// is expected to return an object with a `fetch` method.
-			// @ts-ignore McpAgent or a base class should provide serveSSE
+			// @ts-ignore McpAgent provides serveSSE method
 			const sseHandler = NciGdcMCP.serveSSE("/sse");
 			return sseHandler.fetch(request, env, ctx);
 		}
 
 		// Fallback for unhandled paths
 		console.error(
-			`NCI GDC MCP Server. Requested path ${url.pathname} not found. Available transports: /mcp (HTTP), /sse (SSE).`
+			`NCI GDC MCP Server. Requested path ${url.pathname} not found. Available endpoints: /mcp (HTTP), /sse (SSE).`
 		);
 
 		return new Response(
