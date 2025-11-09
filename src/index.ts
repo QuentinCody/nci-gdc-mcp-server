@@ -52,7 +52,9 @@ Use introspection to map out the schema, then construct targeted queries for cas
 
 Refer to the NCI GDC Data Portal documentation (https://gdc.cancer.gov/developers/gdc-application-programming-interface-api/gdc-api-user-guide/graphql-quick-start) and the GraphiQL tool (available at the API endpoint) for further schema exploration and query examples. If a query fails, always consider using introspection to verify field names and types before retrying.`,
 		capabilities: {
-			tools: {}, // Indicates tool support
+			tools: {
+				listChanged: true
+			}
 		}
 	});
 
